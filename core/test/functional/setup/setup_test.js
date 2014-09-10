@@ -3,7 +3,7 @@
 
 /*global CasperTest, casper, email, user, password */
 
-CasperTest.begin('Ghost setup fails properly', 6, function suite(test) {
+CasperTest.begin('Ghost setup fails properly', 7, function suite(test) {
     casper.thenOpenAndWaitForPageLoad('setup', function then() {
         test.assertUrlMatch(/ghost\/setup\/$/, 'Landed on the correct URL');
     });
