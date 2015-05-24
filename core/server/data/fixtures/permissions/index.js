@@ -74,7 +74,7 @@ populate = function (options) {
     logInfo('Populating permissions');
     // ### Ensure all permissions are added
     return addAllPermissions(options).then(function () {
-    // ### Ensure all roles_permissions are added
+        // ### Ensure all roles_permissions are added
         return addAllRolesPermissions();
     });
 };
@@ -98,7 +98,7 @@ to003 = function (options) {
         });
     });
 
-    // Now we can perfom the normal populate
+    // Now we can perform the normal populate
     return Promise.all(ops).then(function () {
         return populate(options);
     });

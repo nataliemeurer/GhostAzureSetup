@@ -2,21 +2,33 @@
 /*jshint expr:true*/
 var testUtils   = require('../../utils'),
     should      = require('should'),
+    sinon       = require('sinon'),
     Promise     = require('bluebird'),
     _           = require('lodash'),
 
     // Stuff we are testing
     ModelsTag   = require('../../../server/models/tag'),
     ModelsPost  = require('../../../server/models/post'),
+    events          = require('../../../server/events'),
     context     = testUtils.context.admin,
     TagModel,
-    PostModel;
+    PostModel,
+    sandbox         = sinon.sandbox.create();
 
 describe('Tag Model', function () {
+    var eventSpy;
+
     // Keep the DB clean
     before(testUtils.teardown);
     afterEach(testUtils.teardown);
     beforeEach(testUtils.setup());
+
+    afterEach(function () {
+        sandbox.restore();
+    });
+    beforeEach(function () {
+        eventSpy = sandbox.spy(events, 'emit');
+    });
 
     before(function () {
         TagModel    = ModelsTag.Tag;
@@ -37,6 +49,48 @@ describe('Tag Model', function () {
         }).catch(done);
     });
 
+    it('returns post_count if include post_count', function (done) {
+        testUtils.fixtures.insertPosts().then(function () {
+            TagModel.findOne({slug: 'kitchen-sink'}, {include: 'post_count'}).then(function (tag) {
+                should.exist(tag);
+                tag.get('post_count').should.equal(2);
+
+                done();
+            }).catch(done);
+        });
+    });
+
+    describe('findPage', function () {
+        beforeEach(function (done) {
+            testUtils.fixtures.insertPosts().then(function () {
+                done();
+            }).catch(done);
+        });
+
+        it('with limit all', function (done) {
+            TagModel.findPage({limit: 'all'}).then(function (results) {
+                results.meta.pagination.page.should.equal(1);
+                results.meta.pagination.limit.should.equal('all');
+                results.meta.pagination.pages.should.equal(1);
+                results.tags.length.should.equal(5);
+
+                done();
+            }).catch(done);
+        });
+
+        it('with include post_count', function (done) {
+            TagModel.findPage({limit: 'all', include: 'post_count'}).then(function (results) {
+                results.meta.pagination.page.should.equal(1);
+                results.meta.pagination.limit.should.equal('all');
+                results.meta.pagination.pages.should.equal(1);
+                results.tags.length.should.equal(5);
+                should.exist(results.tags[0].post_count);
+
+                done();
+            }).catch(done);
+        });
+    });
+
     describe('a Post', function () {
         it('can add a tag', function (done) {
             var newPost = testUtils.DataGenerator.forModel.posts[0],
@@ -49,6 +103,10 @@ describe('Tag Model', function () {
             ]).then(function (models) {
                 var createdPost = models[0],
                     createdTag = models[1];
+
+                eventSpy.calledTwice.should.be.true;
+                eventSpy.calledWith('post.added').should.be.true;
+                eventSpy.calledWith('tag.added').should.be.true;
 
                 createdPostID = createdPost.id;
                 return createdPost.tags().attach(createdTag);
@@ -76,6 +134,10 @@ describe('Tag Model', function () {
                 var createdPost = models[0],
                     createdTag = models[1];
 
+                eventSpy.calledTwice.should.be.true;
+                eventSpy.calledWith('post.added').should.be.true;
+                eventSpy.calledWith('tag.added').should.be.true;
+
                 createdPostID = createdPost.id;
                 createdTagID = createdTag.id;
                 return createdPost.tags().attach(createdTag);
@@ -84,6 +146,7 @@ describe('Tag Model', function () {
             }).then(function (postWithTag) {
                 return postWithTag.tags().detach(createdTagID);
             }).then(function () {
+                eventSpy.calledTwice.should.be.true;
                 return PostModel.findOne({id: createdPostID, status: 'all'}, {withRelated: ['tags']});
             }).then(function (postWithoutTag) {
                 postWithoutTag.related('tags').length.should.equal(0);
@@ -134,7 +197,7 @@ describe('Tag Model', function () {
                     postModel = postModel.toJSON();
                     postModel.tags = existingTagData;
 
-                    return PostModel.edit(postModel, _.extend(context, {id: postModel.id, withRelated: ['tags']}));
+                    return PostModel.edit(postModel, _.extend({}, context, {id: postModel.id, withRelated: ['tags']}));
                 }).then(function (postModel) {
                     var tagNames = postModel.related('tags').models.map(function (t) { return t.attributes.name; });
                     tagNames.sort().should.eql(seededTagNames);
@@ -160,7 +223,7 @@ describe('Tag Model', function () {
                     postModel = postModel.toJSON();
                     postModel.tags = tagData;
 
-                    return PostModel.edit(postModel, _.extend(context, {id: postModel.id, withRelated: ['tags']}));
+                    return PostModel.edit(postModel, _.extend({}, context, {id: postModel.id, withRelated: ['tags']}));
                 }).then(function (postModel) {
                     return PostModel.findOne({id: postModel.id, status: 'all'}, {withRelated: ['tags']});
                 }).then(function (reloadedPost) {
@@ -187,7 +250,7 @@ describe('Tag Model', function () {
                     postModel = postModel.toJSON();
                     postModel.tags = tagData;
 
-                    return PostModel.edit(postModel, _.extend(context, {id: postModel.id, withRelated: ['tags']}));
+                    return PostModel.edit(postModel, _.extend({}, context, {id: postModel.id, withRelated: ['tags']}));
                 }).then(function () {
                     return PostModel.findOne({id: postModel.id, status: 'all'}, {withRelated: ['tags']});
                 }).then(function (reloadedPost) {
@@ -216,7 +279,7 @@ describe('Tag Model', function () {
                     postModel = postModel.toJSON();
                     postModel.tags = tagData;
 
-                    return PostModel.edit(postModel, _.extend(context, {id: postModel.id, withRelated: ['tags']}));
+                    return PostModel.edit(postModel, _.extend({}, context, {id: postModel.id, withRelated: ['tags']}));
                 }).then(function (postModel) {
                     return PostModel.findOne({id: postModel.id, status: 'all'}, {withRelated: ['tags']});
                 }).then(function (reloadedPost) {
@@ -241,7 +304,7 @@ describe('Tag Model', function () {
                     postModel = postModel.toJSON();
                     postModel.tags = tagData;
 
-                    return PostModel.edit(postModel, _.extend(context, {id: postModel.id, withRelated: ['tags']}));
+                    return PostModel.edit(postModel, _.extend({}, context, {id: postModel.id, withRelated: ['tags']}));
                 }).then(function (postModel) {
                     return PostModel.findOne({id: postModel.id, status: 'all'}, {withRelated: ['tags']});
                 }).then(function (reloadedPost) {
@@ -272,7 +335,7 @@ describe('Tag Model', function () {
                     postModel = postModel.toJSON();
                     postModel.tags = tagData;
 
-                    return PostModel.edit(postModel, _.extend(context, {id: postModel.id, withRelated: ['tags']}));
+                    return PostModel.edit(postModel, _.extend({}, context, {id: postModel.id, withRelated: ['tags']}));
                 }).then(function () {
                     return PostModel.findOne({id: postModel.id, status: 'all'}, {withRelated: ['tags']});
                 }).then(function (reloadedPost) {
@@ -311,7 +374,7 @@ describe('Tag Model', function () {
                     postModel = postModel.toJSON();
                     postModel.tags = tagData;
 
-                    return PostModel.edit(postModel, _.extend(context, {id: postModel.id, withRelated: ['tags']}));
+                    return PostModel.edit(postModel, _.extend({}, context, {id: postModel.id, withRelated: ['tags']}));
                 }).then(function () {
                     return PostModel.findOne({id: postModel.id, status: 'all'}, {withRelated: ['tags']});
                 }).then(function (reloadedPost) {
@@ -326,6 +389,36 @@ describe('Tag Model', function () {
                     Math.max.apply(Math, tagIds).should.eql(4);
 
                     done();
+                }).catch(done);
+            });
+
+            it('attaches two new tags and resolves conflicting slugs', function (done) {
+                var tagData = [];
+
+                // Add the tags that don't exist in the database and have potentially
+                // conflicting slug names
+                tagData.push({id: 1, name: 'C'});
+                tagData.push({id: 2, name: 'C++'});
+
+                PostModel.add(testUtils.DataGenerator.forModel.posts[0], context).then(function (postModel) {
+                    postModel = postModel.toJSON();
+                    postModel.tags = tagData;
+
+                    return PostModel.edit(postModel, _.extend({}, context, {id: postModel.id})).then(function () {
+                        return PostModel.findOne({id: postModel.id, status: 'all'}, {withRelated: ['tags']});
+                    }).then(function (reloadedPost) {
+                        var tagModels = reloadedPost.related('tags').models,
+                            tagNames = tagModels.map(function (t) { return t.get('name'); }),
+                            tagIds = _.pluck(tagModels, 'id');
+
+                        tagNames.sort().should.eql(['C', 'C++']);
+
+                        // make sure it hasn't just added a new tag with the same name
+                        // Don't expect a certain order in results - check for number of items!
+                        Math.max.apply(Math, tagIds).should.eql(2);
+
+                        done();
+                    });
                 }).catch(done);
             });
 
@@ -346,7 +439,7 @@ describe('Tag Model', function () {
                     postModel = postModel.toJSON();
                     postModel.tags = tagData;
 
-                    return PostModel.edit(postModel, _.extend(context, {id: postModel.id, withRelated: ['tags']}));
+                    return PostModel.edit(postModel, _.extend({}, context, {id: postModel.id, withRelated: ['tags']}));
                 }).then(function () {
                     return PostModel.findOne({id: postModel.id, status: 'all'}, {withRelated: ['tags']});
                 }).then(function (reloadedPost) {
@@ -365,7 +458,7 @@ describe('Tag Model', function () {
             });
 
             it('can add a tag to a post on creation', function (done) {
-                var newPost = _.extend(testUtils.DataGenerator.forModel.posts[0], {tags: [{name: 'test_tag_1'}]});
+                var newPost = _.extend({}, testUtils.DataGenerator.forModel.posts[0], {tags: [{name: 'test_tag_1'}]});
 
                 PostModel.add(newPost, context).then(function (createdPost) {
                     return PostModel.findOne({id: createdPost.id, status: 'all'}, {withRelated: ['tags']});

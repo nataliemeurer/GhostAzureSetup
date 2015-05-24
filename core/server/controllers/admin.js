@@ -13,8 +13,15 @@ adminControllers = {
         /*jslint unparam:true*/
 
         function renderIndex() {
-            res.render('default', {
-                skip_google_fonts: config.isPrivacyDisabled('useGoogleFonts')
+            return api.configuration.browse().then(function (data) {
+                var apiConfig = _.omit(data.configuration, function (value) {
+                    return _.contains(['environment', 'database', 'mail', 'version'], value.key);
+                });
+
+                res.render('default', {
+                    skip_google_fonts: config.isPrivacyDisabled('useGoogleFonts'),
+                    configuration: apiConfig
+                });
             });
         }
 
@@ -26,12 +33,11 @@ adminControllers = {
             }
 
             var notification = {
-                type: 'success',
-                location: 'top',
+                type: 'upgrade',
+                location: 'settings-about-upgrade',
                 dismissible: false,
                 status: 'persistent',
-                message: '<a href="https://ghost.org/download">Ghost ' + updateVersion +
-                '</a> is available! Hot Damn. Please <a href="http://support.ghost.org/how-to-upgrade/" target="_blank">upgrade</a> now'
+                message: 'Ghost ' + updateVersion + ' is available! Hot Damn. <a href="http://support.ghost.org/how-to-upgrade/" target="_blank">Click here</a> to upgrade.'
             };
 
             return api.notifications.browse({context: {internal: true}}).then(function (results) {

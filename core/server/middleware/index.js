@@ -12,18 +12,17 @@ var api            = require('../api'),
     hbs            = require('express-hbs'),
     logger         = require('morgan'),
     middleware     = require('./middleware'),
-    packageInfo    = require('../../../package.json'),
     path           = require('path'),
     routes         = require('../routes'),
     slashes        = require('connect-slashes'),
     storage        = require('../storage'),
-    url            = require('url'),
     _              = require('lodash'),
     passport       = require('passport'),
     oauth          = require('./oauth'),
     oauth2orize    = require('oauth2orize'),
     authStrategies = require('./auth-strategies'),
     utils          = require('../utils'),
+    sitemapHandler = require('../data/xml/sitemap/handler'),
 
     blogApp,
     setupMiddleware;
@@ -36,7 +35,8 @@ var api            = require('../api'),
 function ghostLocals(req, res, next) {
     // Make sure we have a locals value.
     res.locals = res.locals || {};
-    res.locals.version = packageInfo.version;
+    res.locals.version = config.ghostVersion;
+    res.locals.safeVersion = config.ghostVersion.match(/^(\d+\.)?(\d+)/)[0];
     // relative path from the URL
     res.locals.relativeUrl = req.path;
 
@@ -53,7 +53,12 @@ function activateTheme(activeTheme) {
     blogApp.cache = {};
 
     // set view engine
-    hbsOptions = {partialsDir: [config.paths.helperTemplates]};
+    hbsOptions = {
+        partialsDir: [config.paths.helperTemplates],
+        onCompile: function (exhbs, source) {
+            return exhbs.handlebars.compile(source, {preventIndent: true});
+        }
+    };
 
     fs.stat(themePartials, function (err, stats) {
         // Check that the theme has a partials directory before trying to use it
@@ -89,7 +94,10 @@ function configHbsForContext(req, res, next) {
     }
 
     hbs.updateTemplateOptions({data: {blog: themeData}});
-    blogApp.set('views', path.join(config.paths.themePath, blogApp.get('activeTheme')));
+
+    if (config.paths.themePath && blogApp.get('activeTheme')) {
+        blogApp.set('views', path.join(config.paths.themePath, blogApp.get('activeTheme')));
+    }
 
     // Pass 'secure' flag to the view engine
     // so that templates can choose 'url' vs 'urlSSL'
@@ -105,6 +113,7 @@ function configHbsForContext(req, res, next) {
 function updateActiveTheme(req, res, next) {
     api.settings.read({context: {internal: true}, key: 'activeTheme'}).then(function (response) {
         var activeTheme = response.settings[0];
+
         // Check if the theme changed
         if (activeTheme.value !== blogApp.get('activeTheme')) {
             // Change theme
@@ -112,6 +121,15 @@ function updateActiveTheme(req, res, next) {
                 if (!res.isAdmin) {
                     // Throw an error if the theme is not available, but not on the admin UI
                     return errors.throwError('The currently active theme ' + activeTheme.value + ' is missing.');
+                } else {
+                    // At this point the activated theme is not present and the current
+                    // request is for the admin client.  In order to allow the user access
+                    // to the admin client we set an hbs instance on the app so that middleware
+                    // processing can continue.
+                    blogApp.engine('hbs', hbs.express3());
+                    errors.logWarn('The currently active theme "' + activeTheme.value + '" is missing.');
+
+                    return next();
                 }
             } else {
                 activateTheme(activeTheme.value);
@@ -163,47 +181,12 @@ function uncapitalise(req, res, next) {
     }
 }
 
-function isSSLrequired(isAdmin) {
-    var forceSSL = url.parse(config.url).protocol === 'https:' ? true : false,
-        forceAdminSSL = (isAdmin && config.forceAdminSSL);
-    if (forceSSL || forceAdminSSL) {
-        return true;
-    }
-    return false;
-}
-
-// Check to see if we should use SSL
-// and redirect if needed
-function checkSSL(req, res, next) {
-    if (isSSLrequired(res.isAdmin)) {
-        if (!req.secure) {
-            var forceAdminSSL = config.forceAdminSSL,
-                redirectUrl;
-
-            // Check if forceAdminSSL: { redirect: false } is set, which means
-            // we should just deny non-SSL access rather than redirect
-            if (forceAdminSSL && forceAdminSSL.redirect !== undefined && !forceAdminSSL.redirect) {
-                return res.sendStatus(403);
-            }
-
-            redirectUrl = url.parse(config.urlSSL || config.url);
-            return res.redirect(301, url.format({
-                protocol: 'https:',
-                hostname: redirectUrl.hostname,
-                port: redirectUrl.port,
-                pathname: req.path,
-                query: req.query
-            }));
-        }
-    }
-    next();
-}
-
 // ### ServeSharedFile Middleware
 // Handles requests to robots.txt and favicon.ico (and caches them)
 function serveSharedFile(file, type, maxAge) {
     var content,
-        filePath = path.join(config.paths.corePath, 'shared', file);
+        filePath = path.join(config.paths.corePath, 'shared', file),
+        re = /(\{\{blog-url\}\})/g;
 
     return function serveSharedFile(req, res, next) {
         if (req.url === '/' + file) {
@@ -215,7 +198,9 @@ function serveSharedFile(file, type, maxAge) {
                     if (err) {
                         return next(err);
                     }
-
+                    if (type === 'text/xsl' || type === 'text/plain') {
+                        buf = buf.toString().replace(re, config.url.replace(/\/$/, ''));
+                    }
                     content = {
                         headers: {
                             'Content-Type': type,
@@ -268,7 +253,6 @@ setupMiddleware = function (blogAppInstance, adminApp) {
     // Static assets
     blogApp.use('/shared', express['static'](path.join(corePath, '/shared'), {maxAge: utils.ONE_HOUR_MS}));
     blogApp.use('/content/images', storage.getStorage().serve());
-    blogApp.use('/ghost/scripts', express['static'](path.join(corePath, '/built/scripts'), {maxAge: utils.ONE_YEAR_MS}));
     blogApp.use('/public', express['static'](path.join(corePath, '/built/public'), {maxAge: utils.ONE_YEAR_MS}));
 
     // First determine whether we're serving admin or theme content
@@ -277,28 +261,36 @@ setupMiddleware = function (blogAppInstance, adminApp) {
     blogApp.use(configHbsForContext);
 
     // Admin only config
-    blogApp.use('/ghost', express['static'](path.join(corePath, '/client/assets'), {maxAge: utils.ONE_YEAR_MS}));
+    blogApp.use('/ghost', express['static'](config.paths.clientAssets, {maxAge: utils.ONE_YEAR_MS}));
 
     // Force SSL
     // NOTE: Importantly this is _after_ the check above for admin-theme static resources,
     //       which do not need HTTPS. In fact, if HTTPS is forced on them, then 404 page might
     //       not display properly when HTTPS is not available!
-    blogApp.use(checkSSL);
+    blogApp.use(middleware.checkSSL);
     adminApp.set('views', config.paths.adminViews);
 
     // Theme only config
     blogApp.use(middleware.staticTheme());
 
+    // Check if password protected blog
+    blogApp.use(middleware.checkIsPrivate); // check if the blog is protected
+    blogApp.use(middleware.filterPrivateRoutes);
+
+    // Serve sitemap.xsl file
+    blogApp.use(serveSharedFile('sitemap.xsl', 'text/xsl', utils.ONE_DAY_S));
+
     // Serve robots.txt if not found in theme
     blogApp.use(serveSharedFile('robots.txt', 'text/plain', utils.ONE_HOUR_S));
 
-    // Add in all trailing slashes, properly include the subdir path
-    // in the redirect.
+    // site map
+    sitemapHandler(blogApp);
+
+    // Add in all trailing slashes
     blogApp.use(slashes(true, {
         headers: {
             'Cache-Control': 'public, max-age=' + utils.ONE_YEAR_S
-        },
-        base: config.paths.subdir
+        }
     }));
     blogApp.use(uncapitalise);
 
@@ -309,8 +301,11 @@ setupMiddleware = function (blogAppInstance, adminApp) {
     blogApp.use(passport.initialize());
 
     // ### Caching
+    // Blog frontend is cacheable
     blogApp.use(middleware.cacheControl('public'));
+    // Admin shouldn't be cached
     adminApp.use(middleware.cacheControl('private'));
+    // API shouldn't be cached
     blogApp.use(routes.apiBaseUri, middleware.cacheControl('private'));
 
     // enable authentication
@@ -329,7 +324,7 @@ setupMiddleware = function (blogAppInstance, adminApp) {
     blogApp.use('/ghost', adminApp);
 
     // Set up Frontend routes
-    blogApp.use(routes.frontend());
+    blogApp.use(routes.frontend(middleware));
 
     // ### Error handling
     // 404 Handler

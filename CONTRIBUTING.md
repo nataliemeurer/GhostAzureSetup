@@ -1,14 +1,21 @@
 # Welcome to the contributing guide for Ghost!
 
 So you're interested in giving us a hand? That's awesome! We've put together some guidelines that should help
-you get started quickly and easily. If you need help with contributing, visit the #ghost IRC channel on freenode. Thank you for stopping by!
+you get started quickly and easily. If you need help with anything, please come visit our [slack community](https://ghost.org/slack). Thank you for stopping by!
 
-**Quick Links:** [feature roadmap](https://github.com/TryGhost/Ghost/wiki/Roadmap) - [support forum](https://ghost.org/forum) - [documentation](http://support.ghost.org) - [developer wiki](https://github.com/TryGhost/Ghost/wiki) - [community guidelines](https://ghost.org/about/guidelines/) - [dev blog](http://dev.ghost.org)
+**Quick Links:**
+- [feature roadmap](https://trello.com/b/EceUgtCL/ghost-roadmap)
+- [feature wishlist](http://ideas.ghost.org)
+- [slack community](https://ghost.org/slack)
+- [documentation](http://support.ghost.org)
+- [developer wiki](https://github.com/TryGhost/Ghost/wiki)
+- [community guidelines](https://ghost.org/about/guidelines/)
+- [dev blog](http://dev.ghost.org)
 
 
 ### TL;DR
 
-If you need help with Ghost or have questions, please use [the forum](https://ghost.org) (documentation is [here](http://support.ghost.org)). If you're [raising a bug](#bugs) please be sure to [include as much info as possible](#bug-template) so that we can fix it! If you've got some code you want to [pull request](#pull-requests) please [squash commits](https://github.com/TryGhost/Ghost/wiki/Git-workflow#wiki-clean-up-history), use this [commit message format]((https://github.com/TryGhost/Ghost/wiki/Git-workflow#commit-messages)) and check it passes the tests by running `grunt validate`. Thanks for helping us make Ghost better.
+If you need help with Ghost or have questions, please use [slack](https://ghost.org/slack) (documentation is [here](http://support.ghost.org)). If you're [raising a bug](#bugs) please be sure to [include as much info as possible](#bug-template) so that we can fix it! If you've got some code you want to [pull request](#pull-requests) please [squash commits](https://github.com/TryGhost/Ghost/wiki/Git-workflow#wiki-clean-up-history), use this [commit message format](https://github.com/TryGhost/Ghost/wiki/Git-workflow#commit-messages) and check it passes the tests by running `grunt validate`. Thanks for helping us make Ghost better.
 
 
 ### Guideline Contents
@@ -32,15 +39,14 @@ There are lots and lots of ways to get involved, this document covers:
 If you're looking to raise an issue because think you've found a problem with Ghost, or you'd like to make a request
 for a new feature in the codebase, or any other reason… please read this first.
 
-The GitHub issue tracker is the preferred channel for [bug reports](#bugs),
-[feature requests](#features), [change requests](#changes) and [submitting pull
+The GitHub issue tracker is the preferred channel for [bug reports](#bugs), [change requests](#changes) and [submitting pull
 requests](#pull-requests), but please respect the following restrictions:
 
 * Please **search for existing issues**. Help us keep duplicate issues to a minimum by checking to see if someone
 has already reported your problem or requested your idea.
 
-* Please **do not** use the issue tracker for personal support requests (use
-  [the forum](http://ghost.org/forum) or IRC - #ghost on freenode).
+* Please **do not** use the issue tracker for personal support requests (use [slack](http://ghost.org/slack) or 
+[stackoverflow](http://stackoverflow.com/questions/tagged/ghost-blog) if you prefer).
 
 * Please **do not** derail or troll issues. Keep the discussion on topic and respect the opinions of others.
 
@@ -59,7 +65,7 @@ Guidelines for bug reports:
    latest `master` or look for [closed issues in the current milestone](https://github.com/TryGhost/Ghost/issues?labels=&milestone=3&page=1&state=closed).
 
 3. **Isolate the problem** &mdash; ideally create a [reduced test
-   case](http://css-tricks.com/6263-reduced-test-cases/) and a live example.
+   case](https://css-tricks.com/reduced-test-cases/) and a live example.
 
 4. **Include a screencast if relevant** - Is your issue about a design or front end feature or bug? The most
 helpful thing in the world is if we can *see* what you're talking about.
@@ -94,29 +100,32 @@ reported. Especially, why do you consider this to be a bug? What do you expect t
 
 ### Technical details:
 
-* Ghost Version: master (latest commit: 590ba48988b51b9c5e8d99afbb84c997436d7f21)
-* Client OS: Mac OS X 10.8.4
+* Ghost Version: master (latest commit: a761de2079dca4df49567b1bddac492f25033985)
+* Client OS: Mac OS X 10.10.1
 * Server OS: CentOS 6.4
 * Node Version: 0.10.16
-* Browser: Chrome 29.0.1547.57
+* Browser: Chrome 39.0.2171.71
 * Database: SQLite / MySQL / postgres
 ```
 
 <a name="features"></a>
 ### Feature Requests
 
-Feature requests are very welcome, and you can also suggest roadmap additions via [the forum](https://ghost.org/forum/bugs-suggestions/17479-ghost-roadmap-got-a-great-idea/). Before you make your suggestion, please:
+If you've got a great idea, we want to hear about it. Our [user wishlist](http://ideas.ghost.org) exists so that we can learn more about what our community wants us to build.
 
-1. Visit the [Roadmap](https://github.com/TryGhost/Ghost/wiki/Roadmap) & **use the GitHub search** to
-see if the feature has already been requested
+Please use your discretion to decide whether a feature request belongs on the [wishlist](http://ideas.ghost.org) or whether it's better suited to a GitHub issue.
 
-2. Have a quick read through [What makes it into Ghost core?](https://github.com/TryGhost/Ghost/wiki/What-makes-it-into-Ghost-core%3F) and decide whether your idea fits with the scope and aims of the project
+Before making a suggestion, here are a few handy tips on what to consider:
 
-3. Remember, it's up to *you* to make a strong case to convince the project's leaders of the merits of this
+1. Visit the [Roadmap](https://github.com/TryGhost/Ghost/wiki/Roadmap), [wishlist](http://ideas.ghost.org) & search to see if the feature has already been requested
+
+2. Check out [What makes it into Ghost core?](https://github.com/TryGhost/Ghost/wiki/What-makes-it-into-Ghost-core%3F) - this explains the guidelines for what fits into the scope and aims of the project
+
+3. Have a quick think about whether your feature is for the admin UI, the blog output, themes or apps - or does it affect multiple areas? This can help when describing your idea.
+
+4. Remember, it's up to *you* to make a strong case to convince the project's leaders of the merits of a new
 feature. Please provide as much detail and context as possible, this means explaining the use case and why it is
-likely to be common.
-
-4. Clearly indicate whether this is a feature request for Ghost admin, or for themes or apps.
+likely to be common. The strongest vote in favour of any feature request is hands-down, un-debatable traction on our user [wishlist](http://ideas.ghost.org).
 
 
 <a name="changes"></a>
@@ -145,7 +154,7 @@ Pull requests are **awesome**. If you're looking to raise a PR for something whi
 ##### Need Help?
 
 If you're not completely clear on how to submit / update / *do* Pull Requests, please check out our in depth
-[Git Workflow guide](https://github.com/TryGhost/Ghost/wiki/Git-Workflow) for Ghost, or visit the #ghost IRC channel on freenode.org and we'll help you out.
+[Git Workflow guide](https://github.com/TryGhost/Ghost/wiki/Git-Workflow) for Ghost, or visit [slack](http://ghost.org/slack) and we'll help you out.
 
 
 <a name="testing"></a>
@@ -214,11 +223,11 @@ If you're interested in contributing to Ghost and don't know where to start, her
 - The [help wanted label](https://github.com/TryGhost/Ghost/labels/help%20wanted) highlights issues that need a champion
 - The [roadmap wiki page](https://github.com/TryGhost/Ghost/wiki/Roadmap#github-backlogs) has details of how we use milestones to prioritise issues
 
-If you're still stuck, please come join us in the #ghost channel in IRC and let us know what you're interested in!
+If you're still stuck, please come join us in [slack](https://ghost.org/slack) and let us know what you're interested in!
 
 
 ### Developer Tips
-Whilst developing, you can take advantage of the [Grunt toolkit](https://github.com/TryGhost/Ghost/wiki/Grunt-Toolkit) to automatically compile assets, such as handlebars templates, sass and ember scripts. Some useful commands include:
+Whilst developing, you can take advantage of the [Grunt toolkit](https://github.com/TryGhost/Ghost/wiki/Grunt-Toolkit) to automatically compile assets, such as handlebars templates, styles and ember scripts. Some useful commands include:
 
 - `grunt dev` => Watch for changes and automatically rebuild assets
 - `grunt prod` => Build assets for the production environment

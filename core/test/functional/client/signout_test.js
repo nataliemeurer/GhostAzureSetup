@@ -7,13 +7,13 @@ CasperTest.begin('Ghost signout works correctly', 3, function suite(test) {
     CasperTest.Routines.signin.run(test);
 
     casper.thenOpenAndWaitForPageLoad('root', function then() {
-        test.assertTitle('Ghost Admin', 'Ghost admin has no title');
+        test.assertTitle('Content - Test Blog', 'Ghost admin has incorrect title');
         test.assertUrlMatch(/ghost\/\d+\/$/, 'Landed on the correct URL without signing in');
     });
 
-    casper.thenClick('.user-menu .nav-label').waitFor(function checkOpaque() {
+    casper.thenClick('.gh-nav-menu').waitFor(function checkOpaque() {
         return this.evaluate(function () {
-            var menu = document.querySelector('.user-menu .dropdown.open');
+            var menu = document.querySelector('.gh-nav-menu.open');
             return window.getComputedStyle(menu).getPropertyValue('display') === 'block' &&
                 window.getComputedStyle(menu).getPropertyValue('opacity') === '1';
         });
