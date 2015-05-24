@@ -1,20 +1,20 @@
 /*globals describe, before, beforeEach, afterEach, it */
 /*jshint expr:true*/
-var testUtils   = require('../../utils'),
-    should      = require('should'),
-    sinon       = require('sinon'),
-    Promise     = require('bluebird'),
-    _           = require('lodash'),
+var testUtils       = require('../../utils'),
+    should          = require('should'),
+    sinon           = require('sinon'),
+    Promise         = require('bluebird'),
+    _               = require('lodash'),
 
 // Stuff we are testing
-    ModelUser   = require('../../../server/models'),
-    UserAPI     = require('../../../server/api/users'),
-    mail        = require('../../../server/api/mail'),
+    ModelUser       = require('../../../server/models'),
+    UserAPI         = require('../../../server/api/users'),
+    mail            = require('../../../server/api/mail'),
 
-    context     = testUtils.context,
-    userIdFor   = testUtils.users.ids,
-    roleIdFor   = testUtils.roles.ids,
-    sandbox     = sinon.sandbox.create();
+    context         = testUtils.context,
+    userIdFor       = testUtils.users.ids,
+    roleIdFor       = testUtils.roles.ids,
+    sandbox         = sinon.sandbox.create();
 
 describe('Users API', function () {
     // Keep the DB clean
@@ -43,10 +43,10 @@ describe('Users API', function () {
             testUtils.API.checkResponse(response, 'users');
             should.exist(response.users);
             response.users.should.have.length(count);
-            testUtils.API.checkResponse(response.users[0], 'user', ['roles']);
-            testUtils.API.checkResponse(response.users[1], 'user', ['roles']);
-            testUtils.API.checkResponse(response.users[2], 'user', ['roles']);
-            testUtils.API.checkResponse(response.users[3], 'user', ['roles']);
+            testUtils.API.checkResponse(response.users[0], 'user');
+            testUtils.API.checkResponse(response.users[1], 'user');
+            testUtils.API.checkResponse(response.users[2], 'user');
+            testUtils.API.checkResponse(response.users[3], 'user');
         }
 
         it('Owner can browse', function (done) {
@@ -87,12 +87,12 @@ describe('Users API', function () {
 
         it('Can browse invited/invited-pending (admin)', function (done) {
             testUtils.fixtures.createInvitedUsers().then(function () {
-                UserAPI.browse(_.extend(testUtils.context.admin, {status: 'invited'})).then(function (response) {
+                UserAPI.browse(_.extend({}, testUtils.context.admin, {status: 'invited'})).then(function (response) {
                     should.exist(response);
                     testUtils.API.checkResponse(response, 'users');
                     should.exist(response.users);
                     response.users.should.have.length(3);
-                    testUtils.API.checkResponse(response.users[0], 'user', ['roles']);
+                    testUtils.API.checkResponse(response.users[0], 'user');
                     response.users[0].status.should.equal('invited-pending');
 
                     done();
@@ -116,20 +116,42 @@ describe('Users API', function () {
         });
 
         it('Can browse all', function (done) {
-            UserAPI.browse(_.extend(testUtils.context.admin, {status: 'all'})).then(function (response) {
+            UserAPI.browse(_.extend({}, testUtils.context.admin, {status: 'all'})).then(function (response) {
                 checkBrowseResponse(response, 7);
+                done();
+            }).catch(done);
+        });
+
+        it('Can browse with roles', function (done) {
+            UserAPI.browse(_.extend({}, testUtils.context.admin, {status: 'all', include: 'roles'})).then(function (response) {
+                should.exist(response);
+                testUtils.API.checkResponse(response, 'users');
+                should.exist(response.users);
+                response.users.should.have.length(7);
+                response.users.should.have.length(7);
+                testUtils.API.checkResponse(response.users[0], 'user', 'roles');
+                testUtils.API.checkResponse(response.users[1], 'user', 'roles');
+                testUtils.API.checkResponse(response.users[2], 'user', 'roles');
+                testUtils.API.checkResponse(response.users[3], 'user', 'roles');
                 done();
             }).catch(done);
         });
     });
 
     describe('Read', function () {
-        function checkReadResponse(response) {
+        function checkReadResponse(response, noEmail) {
             should.exist(response);
             should.not.exist(response.meta);
             should.exist(response.users);
             response.users[0].id.should.eql(1);
-            testUtils.API.checkResponse(response.users[0], 'user', ['roles']);
+
+            if (noEmail) {
+                // Email should be missing
+                testUtils.API.checkResponse(response.users[0], 'user', [], ['email']);
+                should.not.exist(response.users[0].email);
+            } else {
+                testUtils.API.checkResponse(response.users[0], 'user');
+            }
             response.users[0].created_at.should.be.a.Date;
         }
 
@@ -141,7 +163,8 @@ describe('Users API', function () {
         });
 
         it('Admin can read', function (done) {
-            UserAPI.read(_.extend({}, context.admin, {id: userIdFor.owner})).then(function (response) {
+            var stuff = _.extend({}, context.admin, {id: userIdFor.owner});
+            UserAPI.read(stuff).then(function (response) {
                 checkReadResponse(response);
 
                 done();
@@ -164,7 +187,7 @@ describe('Users API', function () {
 
         it('No-auth can read', function (done) {
             UserAPI.read({id: userIdFor.owner}).then(function (response) {
-                checkReadResponse(response);
+                checkReadResponse(response, true);
                 done();
             }).catch(done);
         });
@@ -178,10 +201,21 @@ describe('Users API', function () {
             should.not.exist(response.meta);
             should.exist(response.users);
             response.users.should.have.length(1);
-            testUtils.API.checkResponse(response.users[0], 'user', ['roles']);
+            testUtils.API.checkResponse(response.users[0], 'user');
             response.users[0].name.should.equal(newName);
             response.users[0].updated_at.should.be.a.Date;
         }
+
+        it('throws an error if there is an id mismatch', function (done) {
+            var options = _.extend({}, context.author, {id: userIdFor.author});
+            UserAPI.edit({users: [{id: userIdFor.owner, name: 'Override'}]}, options)
+                .then(function () {
+                    done(new Error('ID mismatches should not be permitted'));
+                }).catch(function (error) {
+                    error.errorType.should.eql('BadRequestError');
+                    done();
+                });
+        });
 
         it('Owner can edit all roles', function (done) {
             UserAPI.edit({users: [{name: newName}]}, _.extend({}, context.owner, {id: userIdFor.owner}))
@@ -203,7 +237,7 @@ describe('Users API', function () {
                 }).catch(done);
         });
 
-        it('Admin can edit all roles', function (done) {
+        it('Admin can edit all users in all roles', function (done) {
             UserAPI.edit({users: [{name: newName}]}, _.extend({}, context.admin, {id: userIdFor.owner}))
                 .then(function (response) {
                     checkEditResponse(response);
@@ -223,6 +257,26 @@ describe('Users API', function () {
                 }).catch(done);
         });
 
+        it('Admin can edit all users in all roles with roles in payload', function (done) {
+            UserAPI.edit({users: [{name: newName, roles: [roleIdFor.owner]}]}, _.extend({}, context.admin, {id: userIdFor.owner}))
+                .then(function (response) {
+                    checkEditResponse(response);
+
+                    return UserAPI.edit({users: [{name: newName, roles: [roleIdFor.admin]}]}, _.extend({}, context.admin, {id: userIdFor.admin}));
+                }).then(function (response) {
+                    checkEditResponse(response);
+                    return UserAPI.edit({users: [{name: newName, roles: [roleIdFor.editor]}]}, _.extend({}, context.admin, {id: userIdFor.editor}));
+                }).then(function (response) {
+                    checkEditResponse(response);
+
+                    return UserAPI.edit({users: [{name: newName, roles: [roleIdFor.author]}]}, _.extend({}, context.admin, {id: userIdFor.author}));
+                }).then(function (response) {
+                    checkEditResponse(response);
+
+                    done();
+                }).catch(done);
+        });
+
         it('Editor CANNOT edit Owner, Admin or Editor roles', function (done) {
             // Cannot edit Owner
             UserAPI.edit(
@@ -230,7 +284,7 @@ describe('Users API', function () {
             ).then(function () {
                 done(new Error('Editor should not be able to edit owner account'));
             }).catch(function (error) {
-                error.type.should.eql('NoPermissionError');
+                error.errorType.should.eql('NoPermissionError');
             }).finally(function () {
                 // Cannot edit Admin
                 UserAPI.edit(
@@ -238,7 +292,7 @@ describe('Users API', function () {
                 ).then(function () {
                     done(new Error('Editor should not be able to edit admin account'));
                 }).catch(function (error) {
-                    error.type.should.eql('NoPermissionError');
+                    error.errorType.should.eql('NoPermissionError');
                 }).finally(function () {
                     // Cannot edit Editor
                     UserAPI.edit(
@@ -246,7 +300,7 @@ describe('Users API', function () {
                     ).then(function () {
                         done(new Error('Editor should not be able to edit other editor account'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
                 });
@@ -276,7 +330,7 @@ describe('Users API', function () {
             ).then(function () {
                 done(new Error('Editor should not be able to edit owner account'));
             }).catch(function (error) {
-                error.type.should.eql('NoPermissionError');
+                error.errorType.should.eql('NoPermissionError');
             }).finally(function () {
                 // Cannot edit admin
                 UserAPI.edit(
@@ -284,14 +338,14 @@ describe('Users API', function () {
                 ).then(function () {
                     done(new Error('Editor should not be able to edit admin account'));
                 }).catch(function (error) {
-                    error.type.should.eql('NoPermissionError');
+                    error.errorType.should.eql('NoPermissionError');
                 }).finally(function () {
                     UserAPI.edit(
                         {users: [{name: newName}]}, _.extend({}, context.author, {id: userIdFor.author2})
                     ).then(function () {
                         done(new Error('Author should not be able to edit author account which is not their own'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
                 });
@@ -364,7 +418,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Owner should not be able to add an owner'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -437,7 +491,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Admin should not be able to add an owner'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -476,6 +530,27 @@ describe('Users API', function () {
                         done();
                     }).catch(done);
             });
+
+            it('Can add two users with the same local-part in their email addresses', function (done) {
+                newUser.roles = [roleIdFor.author];
+
+                UserAPI.add({users: [newUser]}, _.extend({}, context.owner, {include: 'roles'}))
+                    .then(function (response) {
+                        checkAddResponse(response);
+                        response.users[0].id.should.eql(8);
+                        response.users[0].roles[0].name.should.equal('Author');
+                    }).then(function () {
+                        newUser.email = newUser.email.split('@')[0] + '@someotherdomain.com';
+                        return UserAPI.add({users: [newUser]}, _.extend({}, context.owner, {include: 'roles'}))
+                            .then(function (response) {
+                                checkAddResponse(response);
+                                response.users[0].id.should.eql(9);
+                                response.users[0].roles[0].name.should.equal('Author');
+
+                                done();
+                            });
+                    }).catch(done);
+            });
         });
 
         describe('Editor', function () {
@@ -486,7 +561,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Editor should not be able to add an owner'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -511,7 +586,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Author should not be able to add an owner'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -522,7 +597,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Author should not be able to add an author'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -535,7 +610,7 @@ describe('Users API', function () {
             should.exist(response.users);
             should.not.exist(response.meta);
             response.users.should.have.length(1);
-            testUtils.API.checkResponse(response.users[0], 'user', ['roles']);
+            testUtils.API.checkResponse(response.users[0], 'user');
             response.users[0].created_at.should.be.a.Date;
         }
 
@@ -545,7 +620,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Owner should not be able to delete itself'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -576,7 +651,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Admin should not be able to delete owner'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -608,7 +683,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Editor should not be able to delete owner'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -618,7 +693,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Editor should not be able to delete admin'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -628,7 +703,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Editor should not be able to delete other editor'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -656,7 +731,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Author should not be able to delete owner'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -666,7 +741,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Author should not be able to delete admin'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -676,7 +751,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Author should not be able to delete editor'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -686,7 +761,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Author should not be able to delete other author'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -696,7 +771,7 @@ describe('Users API', function () {
                     .then(function () {
                         done(new Error('Author should not be able to delete self'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
                     });
             });
@@ -715,6 +790,17 @@ describe('Users API', function () {
             response.users[0].name.should.equal(newName);
             response.users[0].updated_at.should.be.a.Date;
         }
+
+        it('throws an error if there is an id mismatch', function (done) {
+            var options = _.extend({}, context.author, {id: userIdFor.author});
+            UserAPI.edit({users: [{id: userIdFor.owner, name: 'Override', roles: [roleIdFor.author]}]}, options)
+                .then(function () {
+                    done(new Error('ID mismatches should not be permitted'));
+                }).catch(function (error) {
+                    error.errorType.should.eql('BadRequestError');
+                    done();
+                });
+        });
 
         describe('Owner', function () {
             it('Can assign Admin role', function (done) {
@@ -850,9 +936,9 @@ describe('Users API', function () {
                     }, options).then(function () {
                         done(new Error('Author should not be able to downgrade owner'));
                     }).catch(function (error) {
-                        error.type.should.eql('NoPermissionError');
+                        error.errorType.should.eql('NoPermissionError');
                         done();
-                    });
+                    }).catch(done);
                 });
             });
         });
@@ -878,7 +964,7 @@ describe('Users API', function () {
                 ).then(function () {
                     done(new Error('Editor should not be able to upgrade their role'));
                 }, function (error) {
-                    error.type.should.eql('NoPermissionError');
+                    error.errorType.should.eql('NoPermissionError');
                     done();
                 }).catch(done);
             });
@@ -890,7 +976,7 @@ describe('Users API', function () {
                 ).then(function () {
                     done(new Error('Editor should not be able to change the roles of other editors'));
                 }, function (error) {
-                    error.type.should.eql('NoPermissionError');
+                    error.errorType.should.eql('NoPermissionError');
                     done();
                 }).catch(done);
             });
@@ -902,7 +988,7 @@ describe('Users API', function () {
                 ).then(function () {
                     done(new Error('Editor should not be able to change the roles of admins'));
                 }, function (error) {
-                    error.type.should.eql('NoPermissionError');
+                    error.errorType.should.eql('NoPermissionError');
                     done();
                 }).catch(done);
             });
@@ -913,7 +999,7 @@ describe('Users API', function () {
                 ).then(function () {
                     done(new Error('Editor should not be able to upgrade the role of authors'));
                 }).catch(function (error) {
-                    error.type.should.eql('NoPermissionError');
+                    error.errorType.should.eql('NoPermissionError');
                     done();
                 }).catch(done);
             });
@@ -927,7 +1013,7 @@ describe('Users API', function () {
                 ).then(function () {
                     done(new Error('Author should not be able to upgrade their role'));
                 }, function (error) {
-                    error.type.should.eql('NoPermissionError');
+                    error.errorType.should.eql('NoPermissionError');
                     done();
                 }).catch(done);
             });
@@ -959,7 +1045,7 @@ describe('Users API', function () {
             ).then(function () {
                 done(new Error('Owner should not be able to downgrade their role'));
             }).catch(function (error) {
-                error.type.should.eql('ValidationError');
+                error.errorType.should.eql('ValidationError');
                 done();
             });
         });
@@ -972,7 +1058,7 @@ describe('Users API', function () {
             ).then(function () {
                 done(new Error('Admin is not denied transferring ownership.'));
             }).catch(function (error) {
-                error.type.should.eql('NoPermissionError');
+                error.errorType.should.eql('NoPermissionError');
                 done();
             });
         });
@@ -985,7 +1071,7 @@ describe('Users API', function () {
             ).then(function () {
                 done(new Error('Admin is not denied transferring ownership.'));
             }).catch(function (error) {
-                error.type.should.eql('NoPermissionError');
+                error.errorType.should.eql('NoPermissionError');
                 done();
             });
         });
@@ -998,9 +1084,129 @@ describe('Users API', function () {
             ).then(function () {
                 done(new Error('Admin is not denied transferring ownership.'));
             }).catch(function (error) {
-                error.type.should.eql('NoPermissionError');
+                error.errorType.should.eql('NoPermissionError');
                 done();
             });
+        });
+    });
+
+    describe('Change Password', function () {
+        it('Owner can change own password', function (done) {
+            var payload = {
+                password: [{
+                    user_id: userIdFor.owner,
+                    oldPassword: 'Sl1m3rson',
+                    newPassword: 'newSl1m3rson',
+                    ne2Password: 'newSl1m3rson'
+                }]
+            };
+            UserAPI.changePassword(payload, _.extend({}, context.owner, {id: userIdFor.owner}))
+                .then(function (response) {
+                    response.password[0].message.should.eql('Password changed successfully.');
+                    done();
+                }).catch(done);
+        });
+
+        it('Owner can\'t change password with wrong oldPassword', function (done) {
+            var payload = {
+                password: [{
+                    user_id: userIdFor.owner,
+                    oldPassword: 'wrong',
+                    newPassword: 'Sl1m3rson',
+                    ne2Password: 'Sl1m3rson'
+                }]
+            };
+            UserAPI.changePassword(payload, _.extend({}, context.owner, {id: userIdFor.owner}))
+                .then(function () {
+                    done(new Error('Password change is not denied.'));
+                }).catch(function (error) {
+                    error.errorType.should.eql('ValidationError');
+                    done();
+                });
+        });
+
+        it('Owner can\'t change password without matching passwords', function (done) {
+            var payload = {
+                password: [{
+                    user_id: userIdFor.owner,
+                    oldPassword: 'Sl1m3rson',
+                    newPassword: 'Sl1m3rson1',
+                    ne2Password: 'Sl1m3rson2'
+                }]
+            };
+            UserAPI.changePassword(payload, _.extend({}, context.owner, {id: userIdFor.owner}))
+                .then(function () {
+                    done(new Error('Password change is not denied.'));
+                }).catch(function (error) {
+                    error.errorType.should.eql('ValidationError');
+                    done();
+                });
+        });
+
+        it('Owner can\'t change editor password without matching passwords', function (done) {
+            var payload = {
+                password: [{
+                    user_id: userIdFor.editor,
+                    newPassword: 'Sl1m3rson1',
+                    ne2Password: 'Sl1m3rson2'
+                }]
+            };
+            UserAPI.changePassword(payload, _.extend({}, context.owner, {id: userIdFor.owner}))
+                .then(function () {
+                    done(new Error('Password change is not denied.'));
+                }).catch(function (error) {
+                    error.errorType.should.eql('ValidationError');
+                    done();
+                });
+        });
+
+        it('Owner can\'t change editor password without short passwords', function (done) {
+            var payload = {
+                password: [{
+                    user_id: userIdFor.editor,
+                    newPassword: 'Sl',
+                    ne2Password: 'Sl'
+                }]
+            };
+            UserAPI.changePassword(payload, _.extend({}, context.owner, {id: userIdFor.owner}))
+                .then(function () {
+                    done(new Error('Password change is not denied.'));
+                }).catch(function (error) {
+                    error.errorType.should.eql('ValidationError');
+                    done();
+                });
+        });
+
+        it('Owner can change password for editor', function (done) {
+            var payload = {
+                password: [{
+                    user_id: userIdFor.editor,
+                    newPassword: 'newSl1m3rson',
+                    ne2Password: 'newSl1m3rson'
+                }]
+            };
+            UserAPI.changePassword(payload, _.extend({}, context.owner, {id: userIdFor.owner}))
+                .then(function (response) {
+                    response.password[0].message.should.eql('Password changed successfully.');
+                    done();
+                }).catch(done);
+        });
+
+        it('Editor can\'t change password for admin', function (done) {
+            var payload = {
+                password: [{
+                    user_id: userIdFor.admin,
+                    newPassword: 'newSl1m3rson',
+                    ne2Password: 'newSl1m3rson'
+                }]
+            };
+            UserAPI.changePassword(payload, _.extend({}, context.editor, {id: userIdFor.editor}))
+                .then(function () {
+                    done(new Error('Password change is not denied.'));
+                }).catch(function (error) {
+                    error.errorType.should.eql('NoPermissionError');
+                    done();
+                });
         });
     });
 });

@@ -1,25 +1,19 @@
 // # DB API
 // API for DB operations
-var dataExport       = require('../data/export'),
-    dataImport       = require('../data/import'),
-    dataProvider     = require('../models'),
-    fs               = require('fs-extra'),
+var _                = require('lodash'),
     Promise          = require('bluebird'),
-    _                = require('lodash'),
-    path             = require('path'),
-    errors           = require('../../server/errors'),
+    dataExport       = require('../data/export'),
+    importer         = require('../data/importer'),
+    models           = require('../models'),
+    errors           = require('../errors'),
     canThis          = require('../permissions').canThis,
+    utils            = require('./utils'),
+
     api              = {},
     db;
 
 api.settings         = require('./settings');
 
-function isValidFile(ext) {
-    if (ext === '.json') {
-        return true;
-    }
-    return false;
-}
 /**
  * ## DB API Methods
  *
@@ -58,66 +52,27 @@ db = {
      */
     importContent: function (options) {
         options = options || {};
-        var databaseVersion,
-            type,
-            ext,
-            filepath;
 
+        // Check if a file was provided
+        if (!utils.checkFileExists(options, 'importfile')) {
+            return Promise.reject(new errors.NoPermissionError('Please select a file to import.'));
+        }
+
+        // Check if the file is valid
+        if (!utils.checkFileIsValid(options.importfile, importer.getTypes(), importer.getExtensions())) {
+            return Promise.reject(new errors.UnsupportedMediaTypeError(
+                'Unsupported file. Please try any of the following formats: ' +
+                    _.reduce(importer.getExtensions(), function (memo, ext) {
+                        return memo ? memo + ', ' + ext : ext;
+                    })
+            ));
+        }
+
+        // Permissions check
         return canThis(options.context).importContent.db().then(function () {
-            if (!options.importfile || !options.importfile.type || !options.importfile.path) {
-                return Promise.reject(new errors.NoPermissionError('Please select a file to import.'));
-            }
-
-            type = options.importfile.type;
-            ext = path.extname(options.importfile.name).toLowerCase();
-            filepath = options.importfile.path;
-
-            return Promise.resolve(isValidFile(ext)).then(function (result) {
-                if (!result) {
-                    return Promise.reject(new errors.UnsupportedMediaTypeError('Please select a .json file to import.'));
-                }
-            }).then(function () {
-                return api.settings.read(
-                    {key: 'databaseVersion', context: {internal: true}}
-                ).then(function (response) {
-                    var setting = response.settings[0];
-
-                    return setting.value;
-                });
-            }).then(function (version) {
-                databaseVersion = version;
-                // Read the file contents
-                return Promise.promisify(fs.readFile)(filepath);
-            }).then(function (fileContents) {
-                var importData;
-
-                // Parse the json data
-                try {
-                    importData = JSON.parse(fileContents);
-
-                    // if importData follows JSON-API format `{ db: [exportedData] }`
-                    if (_.keys(importData).length === 1 && Array.isArray(importData.db)) {
-                        importData = importData.db[0];
-                    }
-                } catch (e) {
-                    errors.logError(e, 'API DB import content', 'check that the import file is valid JSON.');
-                    return Promise.reject(new errors.BadRequestError('Failed to parse the import JSON file.'));
-                }
-
-                if (!importData.meta || !importData.meta.version) {
-                    return Promise.reject(
-                        new errors.ValidationError('Import data does not specify version', 'meta.version')
-                    );
-                }
-
-                // Import for the current version
-                return dataImport(databaseVersion, importData);
-            }).then(api.settings.updateSettingsCache)
-            .return({db: []})
-            .finally(function () {
-                // Unlink the file after import
-                return Promise.promisify(fs.unlink)(filepath);
-            });
+            return importer.importFromFile(options.importfile)
+                .then(api.settings.updateSettingsCache)
+                .return({db: []});
         }, function () {
             return Promise.reject(new errors.NoPermissionError('You do not have permission to import data (no rights).'));
         });
@@ -134,7 +89,7 @@ db = {
         options = options || {};
 
         return canThis(options.context).deleteAllContent.db().then(function () {
-            return Promise.resolve(dataProvider.deleteAllContent())
+            return Promise.resolve(models.deleteAllContent())
                 .return({db: []})
                 .catch(function (error) {
                     return Promise.reject(new errors.InternalServerError(error.message || error));

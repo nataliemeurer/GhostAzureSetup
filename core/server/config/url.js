@@ -9,7 +9,7 @@ var moment            = require('moment'),
 // Simple utility function to allow
 // passing of the ghostConfig
 // object here to be used locally
-// to ensure clean depedency graph
+// to ensure clean dependency graph
 // (i.e. no circular dependencies).
 function setConfig(config) {
     ghostConfig = config;
@@ -32,7 +32,6 @@ function setConfig(config) {
 function createUrl(urlPath, absolute, secure) {
     urlPath = urlPath || '/';
     absolute = absolute || false;
-
     var output = '', baseUrl;
 
     // create base of url, always ends without a slash
@@ -41,6 +40,11 @@ function createUrl(urlPath, absolute, secure) {
         output += baseUrl.replace(/\/$/, '');
     } else {
         output += ghostConfig.paths.subdir;
+    }
+
+    // Remove double subdirectory
+    if (urlPath.indexOf(ghostConfig.paths.subdir) === 0) {
+        urlPath = urlPath.replace(ghostConfig.paths.subdir, '');
     }
 
     // append the path, always starts and ends with a slash
@@ -54,7 +58,7 @@ function createUrl(urlPath, absolute, secure) {
 // Creates the url path for a post, given a post and a permalink
 // Parameters:
 // - post - a json object representing a post
-// - permalinks - a json object containing the permalinks setting
+// - permalinks - a string containing the permalinks setting
 function urlPathForPost(post, permalinks) {
     var output = '',
         tags = {
@@ -69,7 +73,7 @@ function urlPathForPost(post, permalinks) {
     if (post.page) {
         output += '/:slug/';
     } else {
-        output += permalinks.value;
+        output += permalinks;
     }
 
     // replace tags like :slug or :year with actual values
@@ -90,7 +94,7 @@ function urlPathForPost(post, permalinks) {
 // Usage:
 // urlFor('home', true) -> http://my-ghost-blog.com/
 // E.g. /blog/ subdir
-// urlFor({relativeUrl: '/my-static-page/') -> /blog/my-static-page/
+// urlFor({relativeUrl: '/my-static-page/'}) -> /blog/my-static-page/
 // E.g. if post object represents welcome post, and slugs are set to standard
 // urlFor('post', {...}) -> /welcome-to-ghost/
 // E.g. if post object represents welcome post, and slugs are set to date
@@ -103,7 +107,8 @@ function urlPathForPost(post, permalinks) {
 function urlFor(context, data, absolute) {
     var urlPath = '/',
         secure, imagePathRe,
-        knownObjects = ['post', 'tag', 'author', 'image'],
+        knownObjects = ['post', 'tag', 'author', 'image', 'nav'], baseUrl,
+        hostname,
 
     // this will become really big
     knownPaths = {
@@ -125,14 +130,14 @@ function urlFor(context, data, absolute) {
         urlPath = context.relativeUrl;
     } else if (_.isString(context) && _.indexOf(knownObjects, context) !== -1) {
         // trying to create a url for an object
-        if (context === 'post' && data.post && data.permalinks) {
-            urlPath = urlPathForPost(data.post, data.permalinks);
-            secure = data.post.secure;
+        if (context === 'post' && data.post) {
+            urlPath = data.post.url;
+            secure = data.secure;
         } else if (context === 'tag' && data.tag) {
-            urlPath = '/tag/' + data.tag.slug + '/';
+            urlPath = '/' + ghostConfig.routeKeywords.tag + '/' + data.tag.slug + '/';
             secure = data.tag.secure;
         } else if (context === 'author' && data.author) {
-            urlPath = '/author/' + data.author.slug + '/';
+            urlPath = '/' + ghostConfig.routeKeywords.author  + '/' + data.author.slug + '/';
             secure = data.author.secure;
         } else if (context === 'image' && data.image) {
             urlPath = data.image;
@@ -140,8 +145,32 @@ function urlFor(context, data, absolute) {
             absolute = imagePathRe.test(data.image) ? absolute : false;
             secure = data.image.secure;
 
-            // Remove the sub-directory from the URL because createUrl() will add it back.
-            urlPath = urlPath.replace(new RegExp('^' + ghostConfig.paths.subdir), '');
+            if (absolute) {
+                // Remove the sub-directory from the URL because ghostConfig will add it back.
+                urlPath = urlPath.replace(new RegExp('^' + ghostConfig.paths.subdir), '');
+                baseUrl = (secure && ghostConfig.urlSSL) ? ghostConfig.urlSSL : ghostConfig.url;
+                baseUrl = baseUrl.replace(/\/$/, '');
+                urlPath = baseUrl + urlPath;
+            }
+
+            return urlPath;
+        } else if (context === 'sitemap-xsl') {
+            absolute = true;
+            urlPath = '/sitemap.xsl';
+        } else if (context === 'nav' && data.nav) {
+            urlPath = data.nav.url;
+            baseUrl = (secure && ghostConfig.urlSSL) ? ghostConfig.urlSSL : ghostConfig.url;
+            hostname = baseUrl.split('//')[1] + ghostConfig.paths.subdir;
+            if (urlPath.indexOf(hostname) > -1 && urlPath.indexOf('.' + hostname) === -1) {
+                // make link relative to account for possible
+                // mismatch in http/https etc, force absolute
+                // do not do so if link is a subdomain of blog url
+                urlPath = urlPath.split(hostname)[1];
+                if (urlPath.substring(0, 1) !== '/') {
+                    urlPath = '/' + urlPath;
+                }
+                absolute = true;
+            }
         }
         // other objects are recognised but not yet supported
     } else if (_.isString(context) && _.indexOf(_.keys(knownPaths), context) !== -1) {
@@ -149,24 +178,14 @@ function urlFor(context, data, absolute) {
         urlPath = knownPaths[context] || '/';
     }
 
+    // This url already has a protocol so is likely an external url to be returned
+    if (urlPath && (urlPath.indexOf('://') !== -1 || urlPath.indexOf('mailto:') === 0)) {
+        return urlPath;
+    }
+
     return createUrl(urlPath, absolute, secure);
-}
-
-// ## urlForPost
-// This method is async as we have to fetch the permalinks
-// Get the permalink setting and then get a URL for the given post
-// Parameters
-// - settings - passed reference to api.settings
-// - post - a json object representing a post
-// - absolute (optional, default:false) - boolean whether or not the url should be absolute
-function urlForPost(settings, post, absolute) {
-    return settings.read('permalinks').then(function (response) {
-        var permalinks = response.settings[0];
-
-        return urlFor('post', {post: post, permalinks: permalinks}, absolute);
-    });
 }
 
 module.exports.setConfig = setConfig;
 module.exports.urlFor = urlFor;
-module.exports.urlForPost = urlForPost;
+module.exports.urlPathForPost = urlPathForPost;

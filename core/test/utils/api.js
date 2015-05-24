@@ -1,4 +1,5 @@
-var url             = require('url'),
+var _               = require('lodash'),
+    url             = require('url'),
     moment          = require('moment'),
     config          = require('../../server/config'),
     ApiRouteBase    = '/ghost/api/v0.1/',
@@ -13,7 +14,7 @@ var url             = require('url'),
         pagination: ['page', 'limit', 'pages', 'total', 'next', 'prev'],
         post: ['id', 'uuid', 'title', 'slug', 'markdown', 'html', 'meta_title', 'meta_description',
             'featured', 'image', 'status', 'language', 'created_at', 'created_by', 'updated_at',
-            'updated_by', 'published_at', 'published_by', 'page', 'author', 'tags', 'fields'
+            'updated_by', 'published_at', 'published_by', 'page', 'author', 'url'
         ],
         settings: ['settings', 'meta'],
         setting: ['id', 'uuid', 'key', 'value', 'type', 'created_at', 'created_by', 'updated_at', 'updated_by'],
@@ -62,9 +63,10 @@ function checkResponseValue(jsonResponse, properties) {
     Object.keys(jsonResponse).length.should.eql(properties.length);
 }
 
-function checkResponse(jsonResponse, objectType, additionalProperties) {
+function checkResponse(jsonResponse, objectType, additionalProperties, missingProperties) {
     var checkProperties = expectedProperties[objectType];
     checkProperties = additionalProperties ? checkProperties.concat(additionalProperties) : checkProperties;
+    checkProperties = missingProperties ? _.xor(checkProperties, missingProperties) : checkProperties;
 
     checkResponseValue(jsonResponse, checkProperties);
 }

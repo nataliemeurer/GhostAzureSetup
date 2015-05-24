@@ -43,7 +43,7 @@ GhostMailer.prototype.from = function () {
         if (!config.theme.title) {
             config.theme.title = 'Ghost at ' + this.getDomain();
         }
-        from = config.theme.title + ' <' + from + '>';
+        from = '"' + config.theme.title + '" <' + from + '>';
     }
 
     return from;
@@ -56,7 +56,7 @@ GhostMailer.prototype.getDomain = function () {
 };
 
 // Sends an e-mail message enforcing `to` (blog owner) and `from` fields
-// This assumes that api.settings.read('email') was aready done on the API level
+// This assumes that api.settings.read('email') was already done on the API level
 GhostMailer.prototype.send = function (message) {
     var self = this,
         to,
@@ -92,7 +92,8 @@ GhostMailer.prototype.send = function (message) {
 
             response.statusHandler.once('failed', function (data) {
                 var reason = 'Email Error: Failed sending email';
-                if (data.error.errno === 'ENOTFOUND') {
+
+                if (data.error && data.error.errno === 'ENOTFOUND') {
                     reason += ': there is no mail server at this address: ' + data.domain;
                 }
                 reason += '.';
@@ -100,7 +101,13 @@ GhostMailer.prototype.send = function (message) {
             });
 
             response.statusHandler.once('requeue', function (data) {
-                return reject(new Error('Email Error: message was not sent, requeued. Probably will not be sent. :( \nMore info: ' + data.error.message));
+                var errorMessage = 'Email Error: message was not sent, requeued. Probably will not be sent. :(';
+
+                if (data.error && data.error.message) {
+                    errorMessage += '\nMore info: ' + data.error.message;
+                }
+
+                return reject(new Error(errorMessage));
             });
 
             response.statusHandler.once('sent', function () {

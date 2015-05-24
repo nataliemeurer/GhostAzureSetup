@@ -1,0 +1,20 @@
+<a class="sr-only sr-only-focusable" href="#gh-main">Skip to main content</a>
+
+{{gh-alerts notify="topNotificationChange"}}
+
+<div class="gh-viewport">
+
+    {{#unless signedOut}}
+        {{partial "nav-menu"}}
+    {{/unless}}
+
+    <main id="gh-main" class="gh-main" role="main" data-notification-count={{topNotificationCount}}>
+        {{outlet}}
+    </main>
+
+    {{gh-notifications}}
+
+    {{outlet "modal"}}
+    {{outlet "settings-menu"}}
+
+</div>{{!gh-viewport}}

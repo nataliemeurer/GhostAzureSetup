@@ -1,0 +1,34 @@
+<div class="page-content">
+    <header>
+        <section class="box entry-title">
+            {{gh-trim-focus-input type="text" id="entry-title" class="gh-input" placeholder="Your Post Title" value=model.titleScratch
+            tabindex="1" focus=shouldFocusTitle}}
+        </section>
+    </header>
+
+    <section class="entry-markdown js-entry-markdown {{unless isPreview 'active'}}">
+        <header {{action "togglePreview" false}} class="floatingheader">
+            <small>Markdown</small>
+            <a class="markdown-help" href="" {{action "openModal" "markdown"}}><i class="icon-markdown"></i></a>
+        </header>
+        <section id="entry-markdown-content" class="entry-markdown-content">
+            {{gh-ed-editor classNames="markdown-editor js-markdown-editor" tabindex="1" spellcheck="true" value=model.scratch
+            scrollInfo=view.editorScrollInfo focus=shouldFocusEditor focusCursorAtEnd=model.isDirty
+            setEditor="setEditor" openModal="openModal" onFocusIn="autoSaveNew"}}
+        </section>
+    </section>
+
+    <section class="entry-preview js-entry-preview {{if isPreview 'active'}}">
+        <header {{action "togglePreview" true}} class="floatingheader">
+            <small>Preview <span class="entry-word-count js-entry-word-count">{{gh-count-words model.scratch}}</span></small>
+        </header>
+        <section class="entry-preview-content js-entry-preview-content">
+            {{gh-ed-preview classNames="rendered-markdown js-rendered-markdown"
+            markdown=model.scratch scrollPosition=view.scrollPosition height=view.height
+            uploadStarted="disableEditor" uploadFinished="enableEditor" uploadSuccess="handleImgUpload"}}
+        </section>
+    </section>
+
+    {{partial "publish-bar"}}
+
+</div>

@@ -62,32 +62,37 @@ var DEBUG = false, // TOGGLE THIS TO GET MORE SCREENSHOTS
 screens = {
     root: {
         url: 'ghost/',
-        linkSelector: '.nav-content',
-        selector: '.nav-content.active'
+        linkSelector: '.gh-nav-main-content',
+        selector: '.gh-nav-main-content.active'
     },
     content: {
         url: 'ghost/content/',
-        linkSelector: '.nav-content',
-        selector: '.nav-content.active'
+        linkSelector: '.gh-nav-main-content',
+        selector: '.gh-nav-main-content.active'
     },
     editor: {
         url: 'ghost/editor/',
-        linkSelector: '.nav-new',
-        selector: '#entry-title'
+        linkSelector: '.gh-nav-main-editor',
+        selector: '.gh-nav-main-editor.active'
     },
-    settings: {
-        url: 'ghost/settings/',
-        linkSelector: '.nav-settings',
-        selector: '.nav-settings.active'
+    'editor.editing': {
+        url: 'ghost/editor/',
+        linkSelector: 'a.post-edit',
+        selector: '.entry-markdown-content .markdown-editor'
     },
     'settings.general': {
         url: 'ghost/settings/general',
-        selector: '.settings-nav-general.active'
+        selector: '.gh-nav-settings-general.active'
+    },
+    'settings.about': {
+        url: 'ghost/settings/about',
+        linkSelector: '.gh-nav-menu-about',
+        selector: '.gh-about-header'
     },
     'settings.users': {
         url: 'ghost/settings/users',
-        linkSelector: '.settings-nav-users a',
-        selector: '.settings-nav-users.active'
+        linkSelector: '.gh-nav-main-users',
+        selector: '.gh-nav-main-users.active'
     },
     'settings.users.user': {
         url: 'ghost/settings/users/test',
@@ -101,8 +106,9 @@ screens = {
     'signin-authenticated': {
         url: 'ghost/signin/',
         // signin with authenticated user redirects to posts
-        selector: '.nav-content.active'
+        selector: '.gh-nav-main-content.active'
     },
+
     signout: {
         url: 'ghost/signout/',
         linkSelector: '.user-menu-signout',
@@ -119,20 +125,18 @@ screens = {
     },
     'setup-authenticated': {
         url: 'ghost/setup/',
-        selector: '.nav-content.active'
+        selector: '.gh-nav-main-content.active'
     }
 };
 
-casper.writeContentToCodeMirror = function (content) {
-    var lines = content.split('\n');
-
+casper.writeContentToEditor = function (content) {
     // If we are on a new editor, the autosave is going to get triggered when we try to type, so we need to trigger
     // that and wait for it to sort itself out
     if (/ghost\/editor\/$/.test(casper.getCurrentUrl())) {
-        casper.waitForSelector('.CodeMirror-wrap textarea', function onSuccess() {
-            casper.click('.CodeMirror-wrap textarea');
+        casper.waitForSelector('.entry-markdown-content textarea', function onSuccess() {
+            casper.click('.entry-markdown-content textarea');
         }, function onTimeout() {
-            casper.test.fail('CodeMirror was not found on initial load.');
+            casper.test.fail('Editor was not found on initial load.');
         }, 2000);
 
         casper.waitForUrl(/\/ghost\/editor\/\d+\/$/, function onSuccess() {
@@ -142,17 +146,15 @@ casper.writeContentToCodeMirror = function (content) {
         }, 2000);
     }
 
-    casper.waitForSelector('.CodeMirror-wrap textarea', function onSuccess() {
-        casper.each(lines, function (self, line) {
-            self.sendKeys('.CodeMirror-wrap textarea', line, {keepFocus: true});
-            self.sendKeys('.CodeMirror-wrap textarea', casper.page.event.key.Enter, {keepFocus: true});
-        });
-
-        casper.captureScreenshot('CodeMirror-Text.png');
+    casper.waitForSelector('.entry-markdown-content textarea', function onSuccess() {
+        casper.sendKeys('.entry-markdown-content textarea', content, {keepFocus: true});
+        // Always end with a new line
+        casper.sendKeys('.entry-markdown-content textarea', '\n', {keepFocus: true});
+        casper.captureScreenshot('EditorText.png');
 
         return this;
     }, function onTimeout() {
-        casper.test.fail('CodeMirror was not found on main load.');
+        casper.test.fail('Editor was not found on main load.');
     }, 2000);
 };
 
@@ -190,9 +192,13 @@ casper.thenOpenAndWaitForPageLoad = function (screen, then, timeout) {
     timeout = timeout || casper.failOnTimeout(casper.test, 'Unable to load ' + screen);
 
     return casper.thenOpen(url + screens[screen].url).then(function () {
-        // Some screens fade in
-        return casper.waitForOpaque(screens[screen].selector, then, timeout, 10000);
+        return casper.waitForScreenLoad(screen, then, timeout);
     });
+};
+
+casper.waitForScreenLoad = function (screen, then, timeout) {
+    // Some screens fade in
+    return casper.waitForOpaque(screens[screen].selector, then, timeout, 10000);
 };
 
 casper.thenTransitionAndWaitForScreenLoad = function (screen, then, timeout) {
@@ -200,8 +206,7 @@ casper.thenTransitionAndWaitForScreenLoad = function (screen, then, timeout) {
     timeout = timeout || casper.failOnTimeout(casper.test, 'Unable to load ' + screen);
 
     return casper.thenClick(screens[screen].linkSelector).then(function () {
-        // Some screens fade in
-        return casper.waitForOpaque(screens[screen].selector, then, timeout, 10000);
+        return casper.waitForScreenLoad(screen, then, timeout);
     });
 };
 
@@ -289,7 +294,7 @@ casper.captureScreenshot = function (filename, debugOnly) {
     }
 };
 
- // on failure, grab a screenshot
+// on failure, grab a screenshot
 casper.test.on('fail', function captureFailure() {
     casper.captureScreenshot(casper.test.filename || 'casper_test_fail.png', false);
     casper.then(function () {
@@ -414,7 +419,7 @@ CasperTest.Routines = (function () {
 
     function signin() {
         casper.thenOpenAndWaitForPageLoad('signin', function then() {
-            casper.waitForOpaque('.login-box', function then() {
+            casper.waitForOpaque('.gh-signin', function then() {
                 casper.captureScreenshot('signing_in.png');
                 this.fillAndSave('#login', user);
                 casper.captureScreenshot('signing_in2.png');
@@ -456,7 +461,7 @@ CasperTest.Routines = (function () {
     function createTestPost(publish) {
         casper.thenOpenAndWaitForPageLoad('editor', function createTestPost() {
             casper.sendKeys('#entry-title', testPost.title);
-            casper.writeContentToCodeMirror(testPost.html);
+            casper.writeContentToEditor(testPost.html);
             casper.sendKeys('#entry-tags input.tag-input', 'TestTag');
             casper.sendKeys('#entry-tags input.tag-input', casper.page.event.key.Enter);
         });

@@ -9,16 +9,16 @@ CasperTest.begin('Content screen is correct', 17, function suite(test) {
 
     // Begin test
     casper.thenOpenAndWaitForPageLoad('content', function testTitleAndUrl() {
-        test.assertTitle('Ghost Admin', 'Title is "Ghost Admin"');
+        test.assertTitle('Content - Test Blog', 'Title is "Content - Test Blog"');
         test.assertUrlMatch(/ghost\/\d+\/$/, 'Landed on the correct URL');
     });
 
     casper.then(function testViews() {
         test.assertExists('.content-view-container', 'Content main view is present');
         test.assertExists('.content-list-content', 'Content list view is present');
-        test.assertExists('.content-list .floatingheader a.btn.btn-green', 'add new post button exists');
+        test.assertExists('.gh-nav-main-editor', 'add new post button exists');
         test.assertEquals(
-            this.getElementAttribute('.content-list .floatingheader a.btn.btn-green', 'href'),
+            this.getElementAttribute('.gh-nav-main-editor', 'href'),
             '/ghost/editor/', 'add new post href is correct'
         );
         test.assertExists('.content-list-content li .entry-title', 'Content list view has at least one item');
@@ -57,7 +57,7 @@ CasperTest.begin('Content list shows correct post status', 5, function testStati
 
     // Begin test
     casper.thenOpenAndWaitForPageLoad('content', function testTitleAndUrl() {
-        test.assertTitle('Ghost Admin', 'Title is "Ghost Admin"');
+        test.assertTitle('Content - Test Blog', 'Title is "Content - Test Blog"');
         test.assertUrlMatch(/ghost\/\d+\/$/, 'Landed on the correct URL');
     });
 
@@ -83,20 +83,20 @@ CasperTest.begin('Content list shows correct post status', 5, function testStati
     casper.thenClick('.post-edit');
     casper.waitForSelector('#entry-title');
 
-    // TODO readd this test when #3811 is fixed
-//    // Change post to static page
-//    casper.thenClick('.post-settings');
-//    casper.waitForOpaque('.post-settings-menu.open');
-//
-//    casper.thenClick('.post-setting-static-page');
-//
-//    casper.thenTransitionAndWaitForScreenLoad('content', function onSuccess() {
-//        casper.waitForSelector('.content-list-content li .entry-meta .status .page', function waitForSuccess() {
-//               test.assertSelectorHasText('.content-list-content li .entry-meta .status .page', 'Page', 'status is Page');
-//           }, function onTimeout() {
-//               test.assert(false, 'status did not change');
-//           });
-//    });
+    // // TODO readd this test when #3811 is fixed
+    // // Change post to static page
+    // casper.thenClick('.post-settings');
+    // casper.waitForOpaque('.post-settings-menu.open');
+
+    // casper.thenClick('.post-setting-static-page');
+
+    // casper.thenTransitionAndWaitForScreenLoad('content', function onSuccess() {
+    //    casper.waitForSelector('.content-list-content li .entry-meta .status .page', function waitForSuccess() {
+    //           test.assertSelectorHasText('.content-list-content li .entry-meta .status .page', 'Page', 'status is Page');
+    //       }, function onTimeout() {
+    //           test.assert(false, 'status did not change');
+    //       });
+    // });
 });
 
 // TODO: Implement this test... much needed!
@@ -104,7 +104,7 @@ CasperTest.begin('Content list shows correct post status', 5, function testStati
 //    // Placeholder for infinite scrolling/pagination tests (will need to setup 16+ posts).
 //
 //    casper.thenOpenAndWaitForPageLoad('content', function testTitleAndUrl() {
-//        test.assertTitle('Ghost Admin', 'Title is "Ghost Admin"');
+//        test.assertTitle('Content - Test Blog', 'Title is "Content - Test Blog"');
 //        test.assertUrlMatch(/ghost\/\d+\/$/, 'Landed on the correct URL');
 //    });
 // });
@@ -115,7 +115,7 @@ CasperTest.begin('Posts can be marked as featured', 6, function suite(test) {
 
     // Begin test
     casper.thenOpenAndWaitForPageLoad('content', function testTitleAndUrl() {
-        test.assertTitle('Ghost Admin', 'Title is "Ghost Admin"');
+        test.assertTitle('Content - Test Blog', 'Title is "Content - Test Blog"');
         test.assertUrlMatch(/ghost\/\d+\/$/, 'Landed on the correct URL');
     });
 
